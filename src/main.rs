@@ -104,6 +104,60 @@ impl<const P: usize, const M: usize> EGF<P, M> {
             field: self,
         }
     }
+
+    pub fn construct_from_digits(&self, value: [usize; M]) -> EGFElement<P, M> {
+        self.construct_element(value.map(<GFElement<P>>::from))
+    }
+
+    pub const fn prime_base(&self) -> usize {
+        P
+    }
+
+    pub const fn power(&self) -> usize {
+        M
+    }
+}
+
+impl<'f, const P: usize, const M: usize> EGFElement<'f, P, M> {
+    pub fn into_digits(self) -> [GFElement<P>; M] {
+        self._value
+    }
+
+    pub fn as_polynomial(&self) -> String {
+        let mut items = self
+            ._value
+            .iter()
+            .rev()
+            .enumerate()
+            .filter_map(|(power, digit)| {
+                let digit = digit.value();
+
+                Some(match (power, digit) {
+                    (_, 0) => return None,
+                    (0, d) => d.to_string(),
+                    (1, 1) => "x".to_string(),
+                    (1, d) => format!("{d}*x"),
+                    (power, 1) => format!("x^{power}"),
+                    (power, digit) => format!("{digit}*x^{power}"),
+                })
+            })
+            .collect::<Vec<_>>();
+
+        items.reverse();
+
+        match items.len() {
+            0 => "0".to_string(),
+            1 => items.pop().unwrap(),
+            _ => items
+                .into_iter()
+                .reduce(|mut acc, value| {
+                    acc.push_str(" + ");
+                    acc.push_str(&value);
+                    acc
+                })
+                .unwrap(),
+        }
+    }
 }
 
 impl<'f, const P: usize, const M: usize> Add for EGFElement<'f, P, M> {
@@ -174,4 +228,8 @@ fn main() {
     }
 
     let egf: EGF<P, M> = EGF::new([1, 0, 3, 2].map(GF5::from).to_vec());
+
+    let el = egf.construct_from_digits([1, 2, 0]);
+
+    println!("{}", el.as_polynomial())
 }
