@@ -1,6 +1,6 @@
 #![feature(generic_const_exprs)]
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fmt::Display,
     hash::Hash,
     ops::{Add, AddAssign, Div, Mul, Sub},
@@ -92,7 +92,7 @@ where
     /// polynomial is big-endian - lowest powers come last
     polynomial: [GFElement<P>; M + 1],
 
-    primitive: Option<[GFElement<P>; M]>,
+    _primitive: [GFElement<P>; M],
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -116,16 +116,20 @@ where
 
 impl<const P: usize, const M: usize> EGF<P, M>
 where
+    [(); 2 * M + 1]: Sized,
+    [(); 2 * M - 1]: Sized,
     [(); M + 1]: Sized,
 {
     /// Construct Extended Galois Field over elements mod P with base polynomial.
     ///
     /// Polynomial is expected to be in big-endian form (lowest powers come last)
     pub fn new(polynomial: [GFElement<P>; M + 1]) -> Self {
-        Self {
+        let mut value = Self {
             polynomial,
-            primitive: None,
-        }
+            _primitive: [Default::default(); M],
+        };
+        value.find_primitive();
+        value
     }
 
     /// Constrict EGF element from digits
@@ -150,8 +154,48 @@ where
         M
     }
 
+    pub fn primitive(&self) -> EGFElement<P, M> {
+        self.construct_element(self._primitive)
+    }
+
     fn find_primitive(&mut self) {
-        todo!()
+        let mut element: [GFElement<P>; M] = [Default::default(); M];
+        element[M - 1] = 2.into();
+
+        let element_power = P.pow(M as u32) - 1;
+
+        let mut terms = HashSet::with_capacity(element_power);
+
+        loop {
+            terms.insert(element);
+
+            let mut exponent = element;
+
+            let mut power = 1;
+
+            while power < element_power {
+                exponent = (self.construct_element(exponent) * self.construct_element(element))
+                    .into_digits();
+
+                if !terms.insert(exponent) {
+                    terms.clear();
+                    break;
+                }
+                power += 1;
+            }
+
+            if power == element_power {
+                self._primitive = element;
+                return;
+            }
+
+            element = positional_inc(element);
+            if is_zero(&element) {
+                break;
+            }
+        }
+
+        panic!("failed to find primitive element after exhaustive search")
     }
 }
 
@@ -226,6 +270,8 @@ where
 
 impl<'f, const P: usize, const M: usize> Add for EGFElement<'f, P, M>
 where
+    [(); 2 * M + 1]: Sized,
+    [(); 2 * M - 1]: Sized,
     [(); M + 1]: Sized,
 {
     type Output = Self;
@@ -242,6 +288,8 @@ where
 
 impl<'f, const P: usize, const M: usize> Sub for EGFElement<'f, P, M>
 where
+    [(); 2 * M + 1]: Sized,
+    [(); 2 * M - 1]: Sized,
     [(); M + 1]: Sized,
 {
     type Output = Self;
@@ -313,6 +361,15 @@ fn positional_inc<const P: usize, const M: usize>(
     }
 
     value
+}
+
+fn is_zero<const P: usize, const M: usize>(value: &[GFElement<P>; M]) -> bool {
+    for digit in value {
+        if digit.value() != 0 {
+            return false;
+        }
+    }
+    true
 }
 
 fn euclidian_divrem<const P: usize, const M: usize>(
@@ -423,7 +480,9 @@ fn main() {
 
     let el = egf.construct_from_digits([1, 2, 0]);
 
-    println!("{}", el.as_polynomial())
+    println!("{}", el.as_polynomial());
+
+    println!("primitive: {:?}", egf.primitive().as_polynomial());
 }
 
 #[cfg(test)]
@@ -495,5 +554,11 @@ mod tests {
     fn add_one_wraps() {
         let vector = [1, 1, 1].map(<GFElement<2>>::from);
         assert_eq!(positional_inc(vector), [0, 0, 0].map(<GFElement<2>>::from));
+    }
+
+    #[test]
+    fn add_one_works_with_other_bases() {
+        let vector = [1, 1, 4].map(<GFElement<5>>::from);
+        assert_eq!(positional_inc(vector), [1, 2, 0].map(<GFElement<5>>::from));
     }
 }
