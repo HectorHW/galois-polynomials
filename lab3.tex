@@ -1,0 +1,225 @@
+\documentclass[a4paper,14pt]{extarticle}
+
+\usepackage{fontspec}
+\usepackage{proof}
+\usepackage{amsmath}
+
+\defaultfontfeatures{Mapping=tex-text,Scale=MatchLowercase}
+\setmainfont{Times New Roman}
+
+\usepackage[left=2cm,right=2cm,
+top=2cm,bottom=2cm,bindingoffset=0cm]{geometry}
+\sloppy
+
+
+\usepackage{indentfirst}
+\parindent 1.25cm
+\linespread{1.5}
+
+\usepackage{enumitem}
+\setlist{nosep}
+\setlist[enumerate]{wide=\parindent}
+\setlist[itemize]{wide=\parindent}
+\renewcommand\labelitemi{-}
+
+\usepackage[nodisplayskipstretch]{setspace}
+\setstretch{1.5}
+
+\usepackage{titlesec}
+
+\titleformat{\section}[block]{\hspace{1.25cm}\bfseries}{\arabic{section}. }{0cm}{}
+
+\usepackage{xcolor,colortbl}
+\definecolor{Gray}{gray}{0.85}
+\newcolumntype{a}{>{\columncolor{Gray}}c}
+
+\usepackage{fancyvrb}
+\setmonofont{Jetbrains Mono}
+
+\begin{document}
+	\begin{titlepage}
+		\noindent\par
+		\noindent\makebox[\textwidth][c]{
+		\begin{minipage}{1.0\textwidth}
+			\centering
+			
+			\fontsize{25pt}{25pt}\selectfont
+			Лабораторная работа №3 на тему:\\
+			"Конечные Поля"\\
+			по предмету\\
+			Теория кодирования информации
+		\end{minipage}}
+	
+	\vfill
+	
+	\hfill\begin{minipage}{0.40\textwidth}
+		Подготовил студент\\
+		группы 09-931\\
+		Редькин В.С.\\
+		Преподаватель: Латыпов Р.Х.
+	\end{minipage}
+		
+	\end{titlepage}
+
+	\setlength{\abovedisplayskip}{0pt}
+	\setlength{\belowdisplayskip}{0pt}
+	
+	\section{Построение конечных полей}
+	
+	Для построения конечных полей достаточно использовать арифметику по модулю. Пятому варианту соответствует $P = 5$, то есть вычисления выполняются с вычислением остатка от деления на 5.
+	
+	Таблицы сложения и умножения имеют следующий вид:
+	
+	\begin{table}[!htb]
+		\begin{minipage}{.5\linewidth}
+			\centering
+			\fontsize{20pt}{25pt}\selectfont
+			\begin{tabular}{c | c c c c c }
+				+ & 0 & 1 & 2 & 3 & 4 \\
+				\hline
+				0 & 0 & 1 & 2 & 3 & 4 \\
+				1 & 1 & 2 & 3 & 4 & 0 \\
+				2 & 2 & 3 & 4 & 0 & 1 \\
+				3 & 3 & 4 & 0 & 1 & 2 \\
+				4 & 4 & 0 & 1 & 2 & 3
+			\end{tabular}
+		\end{minipage}%
+		\begin{minipage}{.5\linewidth}
+			\centering
+			\fontsize{20pt}{25pt}\selectfont
+			\begin{tabular}{c | c c c c c }
+				* & 0 & 1 & 2 & 3 & 4 \\
+				\hline
+				0 & 0 & 0 & 0 & 0 & 0 \\
+				1 & 0 & 1 & 2 & 3 & 4 \\
+				2 & 0 & 2 & 4 & 1 & 3 \\
+				3 & 0 & 3 & 1 & 4 & 2 \\
+				4 & 0 & 4 & 3 & 2 & 1
+			\end{tabular}
+		\end{minipage}
+	\end{table}
+
+	\section{Построение расширенных конечных полей $GF(p^m)$}
+	
+	Для построения поля порядка $q=p^m$ (где p простое) можно воспользоваться полиномами над $GF(p)$, а операции проводить по модулю некоторого неприводимого полинома, таким образом элементы поля можно представить в виде полиномов степени не выше $m-1$.
+	
+	В рассматриваемом варианте степень $m$ равна $3$. Для вычислений используется неприводимый полином $x^3 + 3x + 2$ над простым полем $GF(5)$. Все операции проводятся по модулю этого полинома. Например, умножение двух полиномов $p(x) = x^2+x$ и $q(x) = 3x+1$: $p(x) * q(x) = 3x^3+4x^2+x \equiv 4x^2+2x+4 \ (\textrm{mod}\ f(x))$.
+	
+	Для элементов поля можно определить мультипликативный порядок. Максимальное возможное значение порядка в поле $GF(p^m)$ будет равняться $p^m - 1$, элементы с таким порядком называются примитивными. Возведение такого элемента в различные степени позволяет получить все ненулевые элементы поля. Для рассматриваемого поля примитивным элементом является $x$. Например, возведение $x$ в 70 степень даёт полином $3x^2 + 4x + 4$. Степень примитивного элемента = $5^3 - 1 = 124$. Возведение $x$ в 124 степень даст единицу, а в 125 степень - снова $x$.
+	
+	\section{Таблица логарифмов}
+	
+	Разные представления элементов поля оказываются более удобны либо для сложения (в виде полиномов), либо для умножения (в виде степеней примитивного элемента). Для более удобного выполнения операций сложения элементов, представленных в виде степеней примитивного элемента, можно применить таблицу логарифмов Zech. Данная таблица для каждого значения $i$ содержит элемент $z(i)$, определяющийся как $1+\alpha^i = \alpha^{z(i)}$ (здесь $\alpha$ это примитивный элемент). За счёт этого сложение можно выполнять как: $\alpha^i + \alpha^j = \alpha^i ( 1 + \alpha^{j-i}) = \alpha^{i+z(j-i) \ (\textrm{mod}\ q-1)}$.
+	
+	Таблица логарифмов для представленного варианта имеет вид:
+	
+	\noindent\begin{minipage}{1.0\linewidth}
+		\centering
+		\fontsize{12pt}{10pt}\selectfont
+		\begin{tabular}{|a c| a c| a c| a c| a c| a c| a c| a c |}
+			$\infty$ & 0 & 16 & 24 & 33 & 87 & 50 & 101 & 67 & 108 & 84 & 21 & 101 & 36 & 118 & 71 \\
+			0 & 93 & 17 & 89 & 34 & 1 & 51 & 49 & 68 & 98 & 85 & 73 & 102 & 106 & 119 & 14 \\
+			1 & 103 & 18 & 43 & 35 & 109 & 52 & 55 & 69 & 60 & 86 & 78 & 103 & 119 & 120 & 82 \\
+			2 & 9 & 19 & 99 & 36 & 6 & 53 & 117 & 70 & 46 & 87 & 44 & 104 & 38 & 121 & 85 \\
+			3 & 88 & 20 & 58 & 37 & 81 & 54 & 100 & 71 & 64 & 88 & 94 & 105 & 80 & 122 & 7 \\
+			4 & 86 & 21 & 16 & 38 & 116 & 55 & 115 & 72 & 3 & 89 & 74 & 106 & 25 & 123 & 102 \\
+			5 & 19 & 22 & 4 & 39 & 112 & 56 & 30 & 73 & 122 & 90 & 91 & 107 & 72 & & \\
+			6 & 77 & 23 & 59 & 40 & 61 & 57 & 41 & 74 & 51 & 91 & 54 & 108 & 8 & & \\
+			7 & 121 & 24 & 66 & 41 & 63 & 58 & 18 & 75 & 92 & 92 & 118 & 109 & 53  & & \\
+			8 & 37 & 25 & 95 & 42 & 90 & 59 & 69 & 76 & 57 & 93 & 31 & 110 & 20  & & \\
+			9 & 56 & 26 & 65 & 43 & 110 & 60 & 11 & 77 & 50 & 94 & 107 & 111 & 113  & & \\
+			10 & 45 & 27 & 79 & 44 & 40 & 61 & 33 & 78 & 83 & 95 & 123 & 112 & 15  & & \\
+			11 & 23 & 28 & 104 & 45 & 32 & 62 & $\infty$ & 79 & 111 & 96 & 76 & 113 & 12  & & \\
+			12 & 27 & 29 & 28 & 46 & 5 & 63 & 96 & 80 & 120 & 97 & 52 & 114 & 35  & & \\
+			13 & 2 & 30 & 13 & 47 & 97 & 64 & 75 & 81 & 67 & 98 & 39 & 115 & 47  & & \\
+			14 & 34 & 31 & 62 & 48 & 105 & 65 & 10 & 82 & 48 & 99 & 70 & 116 & 29  & & \\
+			15 & 68 & 32 & 26 & 49 & 17 & 66 & 84 & 83 & 22 & 100 & 42 & 117 & 114 & &
+		\end{tabular}
+	\end{minipage}
+	\newline
+	
+	Используя эту таблицу, сложим $\alpha^{10} = 3x+3$ и $\alpha^{39} = x^2+3x+3$:
+	
+	$\alpha^{10} + \alpha^{39} = \alpha^{10} (1 + \alpha^{29}) = \alpha^{10}\alpha^{28} = \alpha^{38} = x^2 + x + 1$.
+	
+	\section{Представление элементов поля}
+	
+	Существует несколько способов представления элементов поля:
+	
+	\begin{itemize}
+		\item В виде векторов чисел. Такое представление предполагает запись в виде последовательности чисел из диапазона $0..p$ длинной $m$ ($0..5$ и 3 в нашем случае соответственно). Например, [1 0 3]. Такое представление мы скорее всего захотим иметь в качестве входа и выхода систем кодирования информации.
+		
+		\item В виде полиномов. Такое представление оказывается более компактным и позволяет удобно проводить операции сложения, умножение и деление же придётся проводить "в столбик". Для примера выше соответствующий полином имеет вид $x^2 + 3$.
+		
+		\item В виде степеней примитивного элемента. Такое представление позволяет очень удобно умножать, а для сложения можно воспользоваться таблицей логарифмов или осуществить перевод к представлению в виде полиномов. В нашем случае примитивный элемент это $x$, для нашего примера $x^2 + 3 = x ^ {30}$.
+	\end{itemize}
+	
+	\section*{Приложение}
+	\begin{Verbatim}[fontsize=\small, baselinestretch=0.78]
+
+//https://github.com/HectorHW/galois-polynomials
+#![feature(generic_const_exprs)]
+
+use crate::galois::{GFElement, EGF};
+
+mod galois;
+
+fn main() {
+	//вариант 5
+	const P: usize = 5;
+	const M: usize = 3;
+	type GF5 = GFElement<P>;
+	println!("addition table");
+	print!("+ ");
+	(0..P).for_each(|v| print!("{v} "));
+	println!();
+	for y in 0..P {
+		let y: GF5 = y.into();
+		print!("{y} ");
+		for x in 0..P {
+			let x: GF5 = x.into();
+			print!("{} ", x + y);
+		}
+		println!()
+	}
+	println!("\nmultiplication table");
+	print!("* ");
+	(0..P).for_each(|v| print!("{v} "));
+	println!();
+	for y in 0..P {
+		let y: GF5 = y.into();
+		print!("{y} ");
+		
+		for x in 0..P {
+			let x: GF5 = x.into();
+			print!("{} ", x * y);
+		}
+		println!()
+	}
+	let egf: EGF<P, M> = EGF::new([1, 0, 3, 2].map(GF5::from));
+	let el = egf.construct_from_digits([1, 2, 0]);
+	println!("{}", el.as_polynomial());
+	println!("primitive: {:?}", egf.primitive().as_polynomial());
+	println!(
+	"{:?} = {:?} ^ {}",
+	el.as_polynomial(),
+	egf.primitive().as_polynomial(),
+	el.primitive_power()
+	);
+	let table = egf.build_log_table();
+	println!("log table: ");
+	println!("Infinity -> 0");
+	for (i, entry) in table.iter().enumerate() {
+		println!(
+		"{i: >3} -> {}",
+		entry
+		.as_ref()
+		.map(ToString::to_string)
+		.unwrap_or_else(|| "Infinity".to_string())
+		)
+	}
+}
+	\end{Verbatim}
+	
+	
+\end{document}
