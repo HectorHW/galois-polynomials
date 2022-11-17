@@ -201,6 +201,8 @@ where
 
 impl<'f, const P: usize, const M: usize> EGFElement<'f, P, M>
 where
+    [(); 2 * M + 1]: Sized,
+    [(); 2 * M - 1]: Sized,
     [(); M + 1]: Sized,
 {
     pub fn into_digits(self) -> [GFElement<P>; M] {
@@ -241,6 +243,25 @@ where
                 })
                 .unwrap(),
         }
+    }
+
+    pub fn primitive_power(&self) -> usize {
+        assert!(
+            !is_zero(&self._value),
+            "trying to find primitive power of zero"
+        );
+
+        let mut exp = 1;
+        let mut element = self.field.primitive();
+
+        loop {
+            if &element == self {
+                break;
+            }
+            exp += 1;
+            element = element * self.field.primitive();
+        }
+        exp
     }
 }
 
@@ -483,6 +504,13 @@ fn main() {
     println!("{}", el.as_polynomial());
 
     println!("primitive: {:?}", egf.primitive().as_polynomial());
+
+    println!(
+        "{:?} = {:?} ^ {}",
+        el.as_polynomial(),
+        egf.primitive().as_polynomial(),
+        el.primitive_power()
+    )
 }
 
 #[cfg(test)]
