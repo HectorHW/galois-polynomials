@@ -1,9 +1,11 @@
+#![feature(generic_const_exprs)]
 use std::{
+    collections::HashMap,
     fmt::Display,
-    ops::{Add, Div, Mul, Sub},
+    ops::{Add, AddAssign, Div, Mul, Sub},
 };
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub struct GFElement<const P: usize> {
     _value: usize,
 }
@@ -49,6 +51,12 @@ impl<const P: usize> Add for GFElement<P> {
     }
 }
 
+impl<const P: usize> AddAssign for GFElement<P> {
+    fn add_assign(&mut self, rhs: Self) {
+        *self = *self + rhs;
+    }
+}
+
 impl<const P: usize> Sub for GFElement<P> {
     type Output = Self;
 
@@ -60,6 +68,7 @@ impl<const P: usize> Sub for GFElement<P> {
 impl<const P: usize> Div for GFElement<P> {
     type Output = Self;
 
+    #[allow(clippy::suspicious_arithmetic_impl)]
     fn div(self, rhs: Self) -> Self::Output {
         self * rhs
             .inv()
@@ -73,25 +82,34 @@ impl<const P: usize> Display for GFElement<P> {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 
-pub struct EGF<const P: usize, const M: usize> {
+pub struct EGF<const P: usize, const M: usize>
+where
+    [(); M + 1]: Sized,
+{
     /// polynomial is big-endian - lowest powers come last
-    polynomial: Vec<GFElement<P>>,
+    polynomial: [GFElement<P>; M + 1],
 }
 
-pub struct EGFElement<'f, const P: usize, const M: usize> {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EGFElement<'f, const P: usize, const M: usize>
+where
+    [(); M + 1]: Sized,
+{
     /// polynomial is big-endian - lowest powers come last
     _value: [GFElement<P>; M],
     field: &'f EGF<P, M>,
 }
 
-impl<const P: usize, const M: usize> EGF<P, M> {
+impl<const P: usize, const M: usize> EGF<P, M>
+where
+    [(); M + 1]: Sized,
+{
     /// Construct Extended Galois Field over elements mod P with base polynomial.
     ///
     /// Polynomial is expected to be in big-endian form (lowest powers come last)
-    pub fn new(polynomial: Vec<GFElement<P>>) -> Self {
-        assert_eq!(polynomial.len(), M + 1);
+    pub fn new(polynomial: [GFElement<P>; M + 1]) -> Self {
         Self { polynomial }
     }
 
@@ -118,7 +136,10 @@ impl<const P: usize, const M: usize> EGF<P, M> {
     }
 }
 
-impl<'f, const P: usize, const M: usize> EGFElement<'f, P, M> {
+impl<'f, const P: usize, const M: usize> EGFElement<'f, P, M>
+where
+    [(); M + 1]: Sized,
+{
     pub fn into_digits(self) -> [GFElement<P>; M] {
         self._value
     }
@@ -160,7 +181,10 @@ impl<'f, const P: usize, const M: usize> EGFElement<'f, P, M> {
     }
 }
 
-impl<'f, const P: usize, const M: usize> Add for EGFElement<'f, P, M> {
+impl<'f, const P: usize, const M: usize> Add for EGFElement<'f, P, M>
+where
+    [(); M + 1]: Sized,
+{
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
@@ -173,7 +197,10 @@ impl<'f, const P: usize, const M: usize> Add for EGFElement<'f, P, M> {
     }
 }
 
-impl<'f, const P: usize, const M: usize> Sub for EGFElement<'f, P, M> {
+impl<'f, const P: usize, const M: usize> Sub for EGFElement<'f, P, M>
+where
+    [(); M + 1]: Sized,
+{
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
@@ -183,6 +210,112 @@ impl<'f, const P: usize, const M: usize> Sub for EGFElement<'f, P, M> {
         }
 
         self.field.construct_element(buf)
+    }
+}
+
+fn multiply_by_digit<const P: usize, const M: usize>(
+    mut value: [GFElement<P>; M],
+    digit: GFElement<P>,
+) -> [GFElement<P>; M] {
+    for i in 0..M {
+        value[i] = value[i] * digit;
+    }
+    value
+}
+
+fn sub_array<const P: usize, const M: usize>(
+    mut a: [GFElement<P>; M],
+    b: [GFElement<P>; M],
+) -> [GFElement<P>; M] {
+    for i in 0..M {
+        a[i] = a[i] - b[i];
+    }
+    a
+}
+
+fn shift_by_power<const P: usize, const M: usize>(
+    mut value: [GFElement<P>; M],
+    power: usize,
+) -> [GFElement<P>; M] {
+    for i in 0..(M - power) {
+        value[i] = value[i + power];
+    }
+    for i in (M - power)..M {
+        value[i] = Default::default();
+    }
+    value
+}
+
+fn find_power<const P: usize, const M: usize>(value: [GFElement<P>; M]) -> usize {
+    for i in 0..M {
+        if value[i].value() != 0 {
+            return M - 1 - i;
+        }
+    }
+
+    0
+}
+
+fn euclidian_divrem<const P: usize, const M: usize>(
+    mut a: [GFElement<P>; M],
+    b: [GFElement<P>; M],
+) -> ([GFElement<P>; M], [GFElement<P>; M]) {
+    let mut quotient = [<GFElement<P>>::default(); M];
+
+    let divisor_power = find_power(b);
+
+    for power in (0..(M - divisor_power)).rev() {
+        let divisor = shift_by_power(b, power);
+        let idx = M - 1 - (power + divisor_power);
+        while a[idx].value() != 0 {
+            a = sub_array(a, divisor);
+            quotient[idx] += <GFElement<P>>::from(1);
+        }
+    }
+    (quotient, a)
+}
+
+impl<'f, const P: usize, const M: usize> Mul for EGFElement<'f, P, M>
+where
+    [(); 2 * M + 1]: Sized,
+    [(); 2 * M - 1]: Sized,
+    [(); M + 1]: Sized,
+{
+    type Output = Self;
+
+    fn mul(self, rhs: Self) -> Self::Output {
+        let mut powers: HashMap<usize, GFElement<P>> = Default::default();
+        for digit1 in 0..self._value.len() {
+            let power1 = M - digit1 - 1;
+
+            for digit2 in 0..rhs._value.len() {
+                let power2 = M - digit2 - 1;
+
+                *powers.entry(power1 + power2).or_default() +=
+                    self._value[digit1] * rhs._value[digit2];
+            }
+        }
+
+        let mut multiplication_result = [Default::default(); { 2 * M - 1 }];
+
+        for (power, power_value) in powers {
+            multiplication_result[power] = power_value;
+        }
+
+        multiplication_result.reverse();
+
+        let mut upcast_modulo = [Default::default(); { 2 * M - 1 }];
+
+        upcast_modulo[(M - 1 - 1)..].copy_from_slice(&self.field.polynomial[..]);
+
+        let (_d, r) = euclidian_divrem(multiplication_result, upcast_modulo);
+
+        let mut downcast_q = [Default::default(); M];
+        downcast_q.copy_from_slice(&r[(M - 1)..]);
+        Self {
+            _value: downcast_q,
+            field: self.field,
+        }
     }
 }
 
@@ -227,9 +360,54 @@ fn main() {
         println!()
     }
 
-    let egf: EGF<P, M> = EGF::new([1, 0, 3, 2].map(GF5::from).to_vec());
+    let egf: EGF<P, M> = EGF::new([1, 0, 3, 2].map(GF5::from));
 
     let el = egf.construct_from_digits([1, 2, 0]);
 
     println!("{}", el.as_polynomial())
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{GFElement, EGF};
+
+    #[test]
+    fn multiplication_works_without_overflow() {
+        let field: EGF<2, 3> = EGF::new([1, 0, 1, 1].map(<GFElement<2>>::from));
+
+        let q1 = field.construct_from_digits([0, 1, 0]);
+        let q2 = field.construct_from_digits([0, 1, 1]);
+
+        assert_eq!((q1 * q2).into_digits(), [1, 1, 0].map(<GFElement<2>>::from));
+    }
+
+    #[test]
+    fn multiplication_by_zero_gives_zero() {
+        let field: EGF<2, 3> = EGF::new([1, 0, 1, 1].map(<GFElement<2>>::from));
+
+        let q1 = field.construct_from_digits([0, 1, 0]);
+        let q2 = field.construct_from_digits([0, 0, 0]);
+
+        assert_eq!((q1 * q2).into_digits(), [0, 0, 0].map(<GFElement<2>>::from));
+    }
+
+    #[test]
+    fn multiplication_by_one_gives_same_element() {
+        let field: EGF<2, 3> = EGF::new([1, 0, 1, 1].map(<GFElement<2>>::from));
+
+        let q1 = field.construct_from_digits([0, 1, 0]);
+        let q2 = field.construct_from_digits([0, 0, 1]);
+
+        assert_eq!((q1 * q2).into_digits(), q1.into_digits());
+    }
+
+    #[test]
+    fn multiplication_wraps_by_polynomial() {
+        let field: EGF<2, 3> = EGF::new([1, 0, 1, 1].map(<GFElement<2>>::from));
+
+        let q1 = field.construct_from_digits([1, 1, 0]);
+        let q2 = field.construct_from_digits([1, 0, 1]);
+
+        assert_eq!(q1 * q2, field.construct_from_digits([0, 1, 1]));
+    }
 }
