@@ -2,10 +2,11 @@
 use std::{
     collections::HashMap,
     fmt::Display,
+    hash::Hash,
     ops::{Add, AddAssign, Div, Mul, Sub},
 };
 
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct GFElement<const P: usize> {
     _value: usize,
 }
@@ -90,6 +91,8 @@ where
 {
     /// polynomial is big-endian - lowest powers come last
     polynomial: [GFElement<P>; M + 1],
+
+    primitive: Option<[GFElement<P>; M]>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -102,6 +105,15 @@ where
     field: &'f EGF<P, M>,
 }
 
+impl<'f, const P: usize, const M: usize> Hash for EGFElement<'f, P, M>
+where
+    [(); M + 1]: Sized,
+{
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self._value.hash(state);
+    }
+}
+
 impl<const P: usize, const M: usize> EGF<P, M>
 where
     [(); M + 1]: Sized,
@@ -110,7 +122,10 @@ where
     ///
     /// Polynomial is expected to be in big-endian form (lowest powers come last)
     pub fn new(polynomial: [GFElement<P>; M + 1]) -> Self {
-        Self { polynomial }
+        Self {
+            polynomial,
+            primitive: None,
+        }
     }
 
     /// Constrict EGF element from digits
@@ -133,6 +148,10 @@ where
 
     pub const fn power(&self) -> usize {
         M
+    }
+
+    fn find_primitive(&mut self) {
+        todo!()
     }
 }
 
@@ -181,6 +200,30 @@ where
     }
 }
 
+impl<'f, const P: usize, const M: usize> EGFElement<'f, P, M>
+where
+    [(); 2 * M + 1]: Sized,
+    [(); 2 * M - 1]: Sized,
+    [(); M + 1]: Sized,
+{
+    fn pow(self, power: usize) -> Self {
+        if power == 0 {
+            let mut buf = [Default::default(); M];
+            buf[M - 1] = 1usize;
+            return self.field.construct_from_digits(buf);
+        }
+        if power == 1 {
+            return self;
+        }
+
+        if power % 2 == 0 {
+            self.pow(power / 2) * self.pow(power / 2)
+        } else {
+            self * self.pow(power - 1)
+        }
+    }
+}
+
 impl<'f, const P: usize, const M: usize> Add for EGFElement<'f, P, M>
 where
     [(); M + 1]: Sized,
@@ -190,7 +233,7 @@ where
     fn add(self, rhs: Self) -> Self::Output {
         let mut buf = self._value;
         for digit in 0..buf.len() {
-            buf[digit] = buf[digit] + rhs._value[digit];
+            buf[digit] += rhs._value[digit];
         }
 
         self.field.construct_element(buf)
@@ -254,6 +297,22 @@ fn find_power<const P: usize, const M: usize>(value: [GFElement<P>; M]) -> usize
     }
 
     0
+}
+
+fn positional_inc<const P: usize, const M: usize>(
+    mut value: [GFElement<P>; M],
+) -> [GFElement<P>; M] {
+    let mut carry = true;
+
+    for i in (0..M).rev() {
+        if carry {
+            let new_digit = value[i] + 1.into();
+            carry = (value[i].value() + 1) >= P;
+            value[i] = new_digit;
+        }
+    }
+
+    value
 }
 
 fn euclidian_divrem<const P: usize, const M: usize>(
@@ -369,7 +428,7 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use crate::{GFElement, EGF};
+    use crate::{positional_inc, GFElement, EGF};
 
     #[test]
     fn multiplication_works_without_overflow() {
@@ -409,5 +468,32 @@ mod tests {
         let q2 = field.construct_from_digits([1, 0, 1]);
 
         assert_eq!(q1 * q2, field.construct_from_digits([0, 1, 1]));
+    }
+
+    #[test]
+    fn power_computation() {
+        let field: EGF<2, 3> = EGF::new([1, 0, 1, 1].map(<GFElement<2>>::from));
+
+        let q1 = field.construct_from_digits([1, 1, 0]);
+
+        assert_eq!(q1.pow(3), field.construct_from_digits([1, 1, 1]));
+    }
+
+    #[test]
+    fn add_one_increases() {
+        let vector = [0, 1, 0].map(<GFElement<2>>::from);
+        assert_eq!(positional_inc(vector), [0, 1, 1].map(<GFElement<2>>::from));
+    }
+
+    #[test]
+    fn add_one_carrying() {
+        let vector = [0, 1, 1].map(<GFElement<2>>::from);
+        assert_eq!(positional_inc(vector), [1, 0, 0].map(<GFElement<2>>::from));
+    }
+
+    #[test]
+    fn add_one_wraps() {
+        let vector = [1, 1, 1].map(<GFElement<2>>::from);
+        assert_eq!(positional_inc(vector), [0, 0, 0].map(<GFElement<2>>::from));
     }
 }
