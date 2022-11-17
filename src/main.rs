@@ -197,6 +197,35 @@ where
 
         panic!("failed to find primitive element after exhaustive search")
     }
+
+    pub fn build_log_table(&self) -> Vec<Option<usize>> {
+        let table_max_index = P.pow(M as u32) - 2;
+
+        let one = {
+            let mut buf = [Default::default(); M];
+            buf[M - 1] = 1.into();
+            self.construct_element(buf)
+        };
+
+        let mut result = vec![None; table_max_index + 1];
+
+        'search: for i in 0..=table_max_index {
+            let left = self.primitive().pow(i) + one;
+            let mut exponent = one;
+            let mut pow = 0;
+
+            while pow < table_max_index + 1 {
+                if left == exponent {
+                    result[i] = Some(pow);
+                    continue 'search;
+                }
+                exponent = exponent * self.primitive();
+                pow += 1;
+            }
+        }
+
+        result
+    }
 }
 
 impl<'f, const P: usize, const M: usize> EGFElement<'f, P, M>
@@ -323,16 +352,6 @@ where
 
         self.field.construct_element(buf)
     }
-}
-
-fn multiply_by_digit<const P: usize, const M: usize>(
-    mut value: [GFElement<P>; M],
-    digit: GFElement<P>,
-) -> [GFElement<P>; M] {
-    for i in 0..M {
-        value[i] = value[i] * digit;
-    }
-    value
 }
 
 fn sub_array<const P: usize, const M: usize>(
@@ -510,7 +529,23 @@ fn main() {
         el.as_polynomial(),
         egf.primitive().as_polynomial(),
         el.primitive_power()
-    )
+    );
+
+    let table = egf.build_log_table();
+
+    println!("log table: ");
+
+    println!("Infinity -> 0");
+
+    for (i, entry) in table.iter().enumerate() {
+        println!(
+            "{i: >3} -> {}",
+            entry
+                .as_ref()
+                .map(ToString::to_string)
+                .unwrap_or_else(|| "Infinity".to_string())
+        )
+    }
 }
 
 #[cfg(test)]
@@ -588,5 +623,21 @@ mod tests {
     fn add_one_works_with_other_bases() {
         let vector = [1, 1, 4].map(<GFElement<5>>::from);
         assert_eq!(positional_inc(vector), [1, 2, 0].map(<GFElement<5>>::from));
+    }
+
+    #[test]
+    fn log_table() {
+        let field: EGF<2, 3> = EGF::new([1, 0, 1, 1].map(<GFElement<2>>::from));
+
+        let table = field.build_log_table();
+
+        println!("{table:?}");
+
+        assert_eq!(
+            field.primitive().pow(6) + field.primitive().pow(3),
+            field
+                .primitive()
+                .pow(6 + table[(-3isize).rem_euclid(7) as usize].unwrap())
+        );
     }
 }
